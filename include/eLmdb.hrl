@@ -39,30 +39,64 @@
 -define(MDB_MULTIPLE, 16#80000).           	  %% 批量写入多个值  仅仅是 MDB_DUPFIXED dbi flags时 (0x80000)
 %% 说明：MDB_CURRENT 是 mdb_cursor_put 的 flag。
 
-%%%===================================================================
-%%% LMDB 游标操作标志位 (Cursor Operation Flags)
-%%%===================================================================
--define(MDB_FIRST, 0).                        %% 游标位置：第一个数据项
--define(MDB_FIRST_DUP, 1).                    %% 游标位置：第一个重复数据项
--define(MDB_GET_BOTH, 2).                     %% 游标位置：获取当前键/数据项
--define(MDB_GET_BOTH_RANGE, 3).               %% 游标位置：获取当前键和更大的数据项
--define(MDB_GET_CURRENT, 4).                  %% 游标位置：当前键/数据项
--define(MDB_LAST, 8).                         %% 游标位置：最后一个数据项
--define(MDB_LAST_DUP, 9).                     %% 游标位置：最后一个重复数据项
--define(MDB_NEXT, 10).                        %% 游标位置：下一个数据项
--define(MDB_NEXT_DUP, 11).                    %% 游标位置：下一个重复数据项
--define(MDB_NEXT_NODUP, 12).                  %% 游标位置：下一个非重复数据项
--define(MDB_PREV, 13).                        %% 游标位置：上一个数据项
--define(MDB_PREV_DUP, 14).                    %% 游标位置：上一个重复数据项
--define(MDB_PREV_NODUP, 15).                  %% 游标位置：上一个非重复数据项
--define(MDB_SET, 16).                         %% 游标位置：设置范围
--define(MDB_SET_KEY, 17).                     %% 游标位置：设置键范围
--define(MDB_SET_RANGE, 18).                   %% 游标位置：设置范围并返回第一个大于等于的数据项
+%% 写/删操作同步参数
+-define(DbModeAsync, 0).							%% 异步无结果 - 发送到写进程，不等待结果
+-define(DbModeAsyncWait, 1).					%% 异步等待结果 - 发送到写进程，等待结果返回
+-define(DbModeSyncExe, 2).						%% 同步执行 - 在当前NIF函数内直接执行
+-define(DbModeSyncReturn, 3).					%% 同步执行 - 在当前NIF函数内直接执行
 
-%%%===================================================================
-%%% LMDB 复制标志位 (Copy Flags)
-%%%===================================================================
--define(MDB_CP_COMPACT, 16#01).              %% 压缩复制：省略空闲空间，顺序重新编号所有页面
+-define(DbTimeout, 5000).
+
+%% nif_env_sync  Force 参数
+%% - 0 ：非强制同步
+%% - 1 ：强制同步
+%% ## 具体行为差异：
+%% ### 当 force = 0（非强制同步）：
+%% - 只有在环境没有设置 MDB_NOSYNC 标志时才会执行同步操作
+%% - 如果设置了 MDB_MAPASYNC 标志，会使用 MS_ASYNC 进行异步同步
+%% - 这是性能优化的选项，允许系统在合适的时候进行同步
+%% ### 当 force = 1（强制同步）：
+%% - 无论环境是否设置了 MDB_NOSYNC 标志，都会执行同步操作
+%% - 总是使用 MS_SYNC 进行同步同步
+%% - 确保所有数据都立即写入磁盘，提供最强的数据持久性保证
+-define(DbSyncNoeForce, 0).
+-define(DbSyncForce, 1).
+
+%%nif_env_copy Flags 参数
+%% - 0: 普通复制
+%% - ?MDB_CP_COMPACT (1): 压缩复制 - 省略空闲空间，顺序重新编号所有页面
+-define(DbCopyNormal, 0).  %% 0: 普通复制
+-define(DbCopyCompact, 1). %% 压缩复制
+
+%% nif_drop  Force 参数
+%% Mode 操作模式
+%%  - 0: 清空数据库 - 删除所有数据但保留数据库结构
+%%  - 1: 删除数据库 - 从环境中删除数据库并关闭句柄
+-define(DbDropClear, 0).  %% 0: 清空数据库 - 删除所有数据但保留数据库结构
+-define(DbDropDel, 1).    %% 1: 删除数据库 - 从环境中删除数据库并关闭句柄
+
+%% nif_writes  SameTransaction 参数
+%% SameTransaction 事务模式
+%%  - 0: 不同事务 - 每个操作使用独立事务
+%%  - 1: 相同事务 - 所有操作使用同一个事务
+-define(DbTxnDiff, 0).  %% 不同事务 - 每个操作使用独立事务
+-define(DbTxnSame, 1).  %% 相同事务 - 所有操作使用同一个事务
+
+%% @param StartKey 起始键（可选，可以是'$TvsBegin'表示从头开始）
+%% @param BatchSize 批量大小（可选，默认100）
+%% @param Direction 遍历方向（0-正序，1-反序）
+%% @param ReturnType 返回类型（0-键值对，1-仅键）
+%% @returns {ok, list(), key() | '$TvsOver'} | {error, term()}
+-define(TvsBegin, '$TvsBegin').
+-define(TvsOver, '$TvsOver').
+
+-define(DbTvsAsc, 0).    %% 0-正序
+-define(DbTvsDesc, 1).	%% 1-反序
+
+-define(DbTvsKv, 0).		%% 0-键值对
+-define(DbTvsKey, 1).		%% 1-仅键
+%% 默认遍历批量大小
+-define(DefTvsSize, 100).
 
 %%%===================================================================
 %%% LMDB 错误码 (Error Codes)
@@ -88,6 +122,26 @@
 -define(MDB_BAD_VALSIZE, -30781).            %% 文件太大
 -define(MDB_BAD_DBI, -30780).                %% 文件不是有效的数据库
 -define(MDB_PROBLEM, -30779).                %% 问题已修复
+
+%%%===================================================================
+%%% LMDB 游标操作标志位 (Cursor Operation Flags)
+%%%===================================================================
+-define(MDB_FIRST, 0).                        %% 游标位置：第一个数据项
+-define(MDB_FIRST_DUP, 1).                    %% 游标位置：第一个重复数据项
+-define(MDB_GET_BOTH, 2).                     %% 游标位置：获取当前键/数据项
+-define(MDB_GET_BOTH_RANGE, 3).               %% 游标位置：获取当前键和更大的数据项
+-define(MDB_GET_CURRENT, 4).                  %% 游标位置：当前键/数据项
+-define(MDB_LAST, 8).                         %% 游标位置：最后一个数据项
+-define(MDB_LAST_DUP, 9).                     %% 游标位置：最后一个重复数据项
+-define(MDB_NEXT, 10).                        %% 游标位置：下一个数据项
+-define(MDB_NEXT_DUP, 11).                    %% 游标位置：下一个重复数据项
+-define(MDB_NEXT_NODUP, 12).                  %% 游标位置：下一个非重复数据项
+-define(MDB_PREV, 13).                        %% 游标位置：上一个数据项
+-define(MDB_PREV_DUP, 14).                    %% 游标位置：上一个重复数据项
+-define(MDB_PREV_NODUP, 15).                  %% 游标位置：上一个非重复数据项
+-define(MDB_SET, 16).                         %% 游标位置：设置范围
+-define(MDB_SET_KEY, 17).                     %% 游标位置：设置键范围
+-define(MDB_SET_RANGE, 18).                   %% 游标位置：设置范围并返回第一个大于等于的数据项
 
 %%%===================================================================
 %%% 数据结构定义

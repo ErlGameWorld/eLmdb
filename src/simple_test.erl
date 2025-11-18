@@ -29,10 +29,10 @@ create_env_test() ->
         ok = filelib:ensure_dir("./simple_test_db/"),
         
         %% 尝试创建环境
-        case eLmdb:env_open("./simple_test_db", 104857600, 10, 126, 0) of
+        case eLmdb:envOpen("./simple_test_db", 104857600, 10, 126, 0) of
             {ok, Ref} ->
                 io:format("✓ 环境创建成功~n"),
-                eLmdb:env_close(Ref),
+                eLmdb:envClose(Ref),
                 io:format("✓ 环境关闭成功~n");
             EnvError ->
                 io:format("✗ 环境创建失败: ~p~n", [EnvError])

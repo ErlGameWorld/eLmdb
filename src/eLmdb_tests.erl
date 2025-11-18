@@ -16,7 +16,7 @@ environment_management_test() ->
     
     %% 1. 环境创建测试
     io:format("1. 环境创建测试...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} ->
             io:format("   环境创建成功: ~p~n", [Ref]),
             Ref;
@@ -27,7 +27,7 @@ environment_management_test() ->
     
     %% 2. 环境信息查询测试
     io:format("2. 环境信息查询测试...~n"),
-    case eLmdb:env_info(EnvRef) of
+    case eLmdb:envInfo(EnvRef) of
         {ok, EnvInfo} ->
             io:format("   环境信息查询成功: ~p~n", [EnvInfo]);
         {error, Reason2} ->
@@ -36,7 +36,7 @@ environment_management_test() ->
     
     %% 3. 环境统计查询测试
     io:format("3. 环境统计查询测试...~n"),
-    case eLmdb:env_stat(EnvRef) of
+    case eLmdb:envStat(EnvRef) of
         {ok, EnvStat} ->
             io:format("   环境统计查询成功: ~p~n", [EnvStat]);
         {error, Reason3} ->
@@ -45,7 +45,7 @@ environment_management_test() ->
     
     %% 4. 环境同步测试
     io:format("4. 环境同步测试...~n"),
-    case eLmdb:env_sync(EnvRef) of
+    case eLmdb:envSync(EnvRef) of
         ok ->
             io:format("   环境同步成功~n");
         {error, Reason4} ->
@@ -54,7 +54,7 @@ environment_management_test() ->
     
     %% 5. 关闭环境
     io:format("5. 关闭环境...~n"),
-    case eLmdb:env_close(EnvRef) of
+    case eLmdb:envClose(EnvRef) of
         ok ->
             io:format("   环境关闭成功~n");
         {error, Reason5} ->
@@ -70,7 +70,7 @@ database_operations_test() ->
     
     %% 1. 创建环境
     io:format("1. 创建环境...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} ->
             io:format("   环境创建成功: ~p~n", [Ref]),
             Ref;
@@ -81,19 +81,19 @@ database_operations_test() ->
     
     %% 2. 数据库创建测试
     io:format("2. 数据库创建测试...~n"),
-    DbiRef = case eLmdb:dbi_open(EnvRef, "test_db", 262144) of  %% MDB_CREATE flag
+    DbiRef = case eLmdb:dbOpen(EnvRef, "test_db", 262144) of  %% MDB_CREATE flag
         {ok, DbRef} ->
             io:format("   数据库创建成功: ~p~n", [DbRef]),
 			  DbRef;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             return
     end,
     
     %% 3. 数据库统计查询测试
     io:format("3. 数据库统计查询测试...~n"),
-    case eLmdb:dbi_stat(EnvRef, DbiRef) of
+    case eLmdb:dbStat(EnvRef, DbiRef) of
         {ok, DbiStat} ->
             io:format("   数据库统计查询成功: ~p~n", [DbiStat]);
         {error, Reason3} ->
@@ -102,7 +102,7 @@ database_operations_test() ->
     
     %% 4. 数据库标志查询测试
     io:format("4. 数据库标志查询测试...~n"),
-    case eLmdb:dbi_flags(EnvRef, DbiRef) of
+    case eLmdb:dbFlags(EnvRef, DbiRef) of
         {ok, DbiFlags} ->
             io:format("   数据库标志查询成功: ~p~n", [DbiFlags]);
         {error, Reason4} ->
@@ -111,7 +111,7 @@ database_operations_test() ->
     
     %% 5. 关闭环境
     io:format("5. 关闭环境...~n"),
-    case eLmdb:env_close(EnvRef) of
+    case eLmdb:envClose(EnvRef) of
         ok ->
             io:format("   环境关闭成功~n");
         {error, Reason5} ->
@@ -127,7 +127,7 @@ data_operations_test() ->
     
     %% 1. 创建环境和数据库
     io:format("1. 创建环境和数据库...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} ->
             io:format("   环境创建成功: ~p~n", [Ref]),
             Ref;
@@ -136,19 +136,19 @@ data_operations_test() ->
             return
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "test_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "test_db", 16#40000) of
         {ok, DbRef} ->
             io:format("   数据库创建成功: ~p~n", [DbRef]),
 			  DbRef;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             return
     end,
     
     %% 2. 数据插入测试
     io:format("2. 数据插入测试...~n"),
-    case eLmdb:put(EnvRef, DbiRef, "test_key", "test_value", 0, 2) of
+    case eLmdb:put(EnvRef, DbiRef, "test_key", "test_value", 0) of
         ok ->
             io:format("   数据插入成功~n");
         {error, Reason3} ->
@@ -166,7 +166,7 @@ data_operations_test() ->
     
     %% 4. 数据删除测试
     io:format("4. 数据删除测试...~n"),
-    case eLmdb:del(EnvRef, DbiRef, "test_key", 2) of
+    case eLmdb:del(EnvRef, DbiRef, "test_key") of
         ok ->
             io:format("   数据删除成功~n");
         {error, Reason5} ->
@@ -185,8 +185,8 @@ data_operations_test() ->
     %% 6. 数据库清空测试
     io:format("6. 数据库清空测试...~n"),
     %% 先插入一些数据
-    ok = eLmdb:put(EnvRef, DbiRef, "test_key2", "test_value2", 0, 2),
-    case eLmdb:drop(EnvRef, DbiRef) of
+    ok = eLmdb:put(EnvRef, DbiRef, "test_key2", "test_value2", 0),
+    case eLmdb:dbClear(EnvRef, DbiRef) of
         ok ->
             io:format("   数据库清空成功~n");
         {error, Reason6} ->
@@ -195,7 +195,7 @@ data_operations_test() ->
     
     %% 7. 关闭环境
     io:format("7. 关闭环境...~n"),
-    case eLmdb:env_close(EnvRef) of
+    case eLmdb:envClose(EnvRef) of
         ok ->
             io:format("   环境关闭成功~n");
         {error, Reason7} ->
@@ -211,7 +211,7 @@ batch_operations_test() ->
     
     %% 1. 创建环境和数据库
     io:format("1. 创建环境和数据库...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} ->
             io:format("   环境创建成功: ~p~n", [Ref]),
             Ref;
@@ -220,13 +220,13 @@ batch_operations_test() ->
             return
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "test_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "test_db", 16#40000) of
         {ok, DbRef} ->
             io:format("   数据库创建成功: ~p~n", [DbRef]),
 			  DbRef;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             return
     end,
     
@@ -237,7 +237,7 @@ batch_operations_test() ->
         {DbiRef, "key2", "value2"},
         {DbiRef, "key3", "value3"}
     ],
-    case eLmdb:writes(EnvRef, Operations, 2, 1) of  %% 同步模式，相同事务
+    case eLmdb:writes(EnvRef, Operations, ?DbTxnSame) of  %% 同步模式，相同事务
         ok ->
             io:format("   批量数据插入成功~n");
         {error, Reason3} ->
@@ -262,7 +262,7 @@ batch_operations_test() ->
         {DbiRef, "key2"},
         {DbiRef, "key3"}
     ],
-    case eLmdb:get_multi(EnvRef, QueryList) of
+    case eLmdb:getMulti(EnvRef, QueryList) of
         {ok, Results} ->
             io:format("   批量查询成功: ~p~n", [Results]);
         {error, Reason5} ->
@@ -275,7 +275,7 @@ batch_operations_test() ->
         {DbiRef, "key1"},
         {DbiRef, "key2"}
     ],
-    case eLmdb:writes(EnvRef, DelOperations, 2, 1) of
+    case eLmdb:writes(EnvRef, DelOperations, ?DbTxnSame) of
         ok ->
             io:format("   批量删除成功~n");
         {error, Reason6} ->
@@ -295,7 +295,7 @@ batch_operations_test() ->
     
     %% 7. 关闭环境
     io:format("7. 关闭环境...~n"),
-    case eLmdb:env_close(EnvRef) of
+    case eLmdb:envClose(EnvRef) of
         ok ->
             io:format("   环境关闭成功~n");
         {error, Reason7} ->
@@ -311,7 +311,7 @@ traversal_operations_test() ->
     
     %% 1. 创建环境和数据库
     io:format("1. 创建环境和数据库...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} ->
             io:format("   环境创建成功: ~p~n", [Ref]),
             Ref;
@@ -320,13 +320,13 @@ traversal_operations_test() ->
             return
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "test_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "test_db", 16#40000) of
         {ok, DbRef} ->
             io:format("   数据库创建成功: ~p~n", [DbRef]),
 			  DbRef;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             return
     end,
     
@@ -341,7 +341,7 @@ traversal_operations_test() ->
     ],
     
     lists:foreach(fun({Key, Value}) ->
-        case eLmdb:put(EnvRef, DbiRef, Key, Value, 0, 2) of
+        case eLmdb:put(EnvRef, DbiRef, Key, Value, 0) of
             ok ->
                 io:format("   插入: ~p -> ~p~n", [Key, Value]);
             {error, Reason3} ->
@@ -351,7 +351,7 @@ traversal_operations_test() ->
     
     %% 3. 正序遍历测试
     io:format("3. 正序遍历测试...~n"),
-    case eLmdb:traversal_forward(EnvRef, DbiRef, '$TvsBegin', 3) of
+    case eLmdb:tvsAsc(EnvRef, DbiRef, '$TvsBegin', 3) of
         {ok, ForwardData, NextKey} ->
             io:format("   正序遍历成功: ~p 条数据~n", [length(ForwardData)]),
             lists:foreach(fun({Key, Value}) ->
@@ -364,7 +364,7 @@ traversal_operations_test() ->
     
     %% 4. 反序遍历测试
     io:format("4. 反序遍历测试...~n"),
-    case eLmdb:traversal_reverse(EnvRef, DbiRef, '$TvsBegin', 3) of
+    case eLmdb:tvsDesc(EnvRef, DbiRef, '$TvsBegin', 3) of
         {ok, ReverseData, PrevKey} ->
             io:format("   反序遍历成功: ~p 条数据~n", [length(ReverseData)]),
             lists:foreach(fun({Key, Value}) ->
@@ -377,7 +377,7 @@ traversal_operations_test() ->
     
     %% 5. 仅键遍历测试
     io:format("5. 仅键遍历测试...~n"),
-    case eLmdb:traversal_keys_forward(EnvRef, DbiRef, '$TvsBegin', 5) of
+    case eLmdb:tvsKeyAsc(EnvRef, DbiRef, '$TvsBegin', 5) of
         {ok, Keys, NextKey2} ->
             io:format("   仅键遍历成功: ~p 个键~n", [length(Keys)]),
             lists:foreach(fun(Key) ->
@@ -390,8 +390,9 @@ traversal_operations_test() ->
     
     %% 6. 完整遍历测试
     io:format("6. 完整遍历测试...~n"),
-    case eLmdb:traversal_all(EnvRef, DbiRef) of
-        {ok, AllData} ->
+    %% 使用tvsAsc函数进行完整遍历
+    case eLmdb:tvsAsc(EnvRef, DbiRef, '$TvsBegin', 100) of
+        {ok, AllData, _NextKey} ->
             io:format("   完整遍历成功: ~p 条数据~n", [length(AllData)]),
             lists:foreach(fun({Key, Value}) ->
                 io:format("     ~p -> ~p~n", [Key, Value])
@@ -402,7 +403,7 @@ traversal_operations_test() ->
     
     %% 7. 关闭环境
     io:format("7. 关闭环境...~n"),
-    case eLmdb:env_close(EnvRef) of
+    case eLmdb:envClose(EnvRef) of
         ok ->
             io:format("   环境关闭成功~n");
         {error, Reason8} ->
@@ -464,7 +465,7 @@ run_all_functional_tests() ->
         true ->
             io:format("~n=== 有测试失败，请检查 ===~n"),
             lists:foreach(fun({{failed, TestName, Error}, _}) ->
-                io:format("失败测试: ~s, 错误: ~p~n", [TestName, Error])
+                io:format("失败测试: ~ts, 错误: ~p~n", [TestName, Error])
             end, Failed)
     end,
     
@@ -477,18 +478,18 @@ boundary_conditions_test() ->
     
     %% 1. 空数据库测试
     io:format("1. 空数据库测试...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, ERef} -> ERef;
         {error, Reason} -> 
             io:format("   环境创建失败: ~p~n", [Reason]),
             error(Reason)
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "empty_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "empty_db", 16#40000) of
         {ok, DbRef1} -> DbRef1;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             error(Reason2)
     end,
     
@@ -500,7 +501,7 @@ boundary_conditions_test() ->
     
     %% 2. 大数据量测试
     io:format("2. 大数据量测试...~n"),
-    DbiRef2 = case eLmdb:dbi_open(EnvRef, "large_data_db", 16#40000) of
+    DbiRef2 = case eLmdb:dbOpen(EnvRef, "large_data_db", 16#40000) of
         {ok, DbRef2} -> DbRef2;
         {error, Reason3} ->
             io:format("   数据库创建失败: ~p~n", [Reason3]),
@@ -536,18 +537,18 @@ boundary_conditions_test() ->
     %% 4. 内存限制测试
     io:format("4. 内存限制测试...~n"),
     %% 创建小内存环境
-    SmallEnvRef = case eLmdb:env_open(?TEST_DB_PATH_SMALL, 1024 * 1024, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    SmallEnvRef = case eLmdb:envOpen(?TEST_DB_PATH_SMALL, 1024 * 1024, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, SmallERef} -> SmallERef;
         {error, Reason5} ->
             io:format("   小内存环境创建失败: ~p~n", [Reason5]),
             error(Reason5)
     end,
     
-    SmallDbiRef = case eLmdb:dbi_open(SmallEnvRef, "small_mem_db", 16#40000) of
+    SmallDbiRef = case eLmdb:dbOpen(SmallEnvRef, "small_mem_db", 16#40000) of
         {ok, SmallDbRef} -> SmallDbRef;
         {error, Reason6} ->
             io:format("   数据库创建失败: ~p~n", [Reason6]),
-            eLmdb:env_close(SmallEnvRef),
+            eLmdb:envClose(SmallEnvRef),
             error(Reason6)
     end,
     
@@ -557,8 +558,8 @@ boundary_conditions_test() ->
         {error, Reason7} -> io:format("   内存限制测试: 大数据插入失败(预期): ~p~n", [Reason7])
     end,
     
-    eLmdb:env_close(SmallEnvRef),
-    eLmdb:env_close(EnvRef),
+    eLmdb:envClose(SmallEnvRef),
+    eLmdb:envClose(EnvRef),
     
     io:format("~n=== 边界条件测试完成 ===~n"),
     ok.
@@ -569,18 +570,18 @@ concurrency_test() ->
     
     %% 1. 创建共享环境
     io:format("1. 创建共享环境...~n"),
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, 0) of
         {ok, Ref} -> Ref;
         {error, Reason} -> 
             io:format("   环境创建失败: ~p~n", [Reason]),
             error(Reason)
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "concurrent_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "concurrent_db", 16#40000) of
         {ok, DbRef3} -> DbRef3;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             error(Reason2)
     end,
     
@@ -592,7 +593,7 @@ concurrency_test() ->
             lists:foreach(fun(J) ->
                 Key = "writer_" ++ integer_to_list(I) ++ "_key_" ++ integer_to_list(J),
                 Value = "value_" ++ integer_to_list(I) ++ "_" ++ integer_to_list(J),
-                case eLmdb:put(EnvRef, DbiRef, Key, Value, 0, 2) of
+                case eLmdb:put(EnvRef, DbiRef, Key, Value, 0) of
                     ok -> ok;
                     {error, Reason3} -> 
                         io:format("   写入失败: ~p, 错误: ~p~n", [Key, Reason3])
@@ -638,7 +639,7 @@ concurrency_test() ->
                     eLmdb:get(EnvRef, DbiRef, Key);
                 2 -> %% 删除操作
                     Key = "mixed_key_" ++ integer_to_list(I - 2),
-                    eLmdb:del(EnvRef, DbiRef, Key, 2)
+                    eLmdb:del(EnvRef, DbiRef, Key)
             end
         end)
     end, lists:seq(1, 10)),
@@ -647,7 +648,7 @@ concurrency_test() ->
     lists:foreach(fun(Pid) -> Pid ! done end, MixedPids),
     timer:sleep(1000),
     
-    eLmdb:env_close(EnvRef),
+    eLmdb:envClose(EnvRef),
     
     io:format("~n=== 并发操作测试完成 ===~n"),
     ok.
@@ -659,18 +660,18 @@ performance_benchmark_test() ->
     %% 1. 创建测试环境
     io:format("1. 创建测试环境...~n"),
 	Flags = ?MDB_NOSYNC bor ?MDB_NOMETASYNC bor ?MDB_WRITEMAP bor ?MDB_MAPASYNC bor ?MDB_NOMEMINIT bor ?MDB_NORDAHEAD,
-    EnvRef = case eLmdb:env_open(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, Flags) of
+    EnvRef = case eLmdb:envOpen(?TEST_DB_PATH, ?TEST_MAPSIZE, ?TEST_MAX_DBS, ?TEST_MAX_READERS, Flags) of
         {ok, Ref} -> Ref;
         {error, Reason} -> 
             io:format("   环境创建失败: ~p~n", [Reason]),
             return
     end,
     
-    DbiRef = case eLmdb:dbi_open(EnvRef, "benchmark_db", 16#40000) of
+    DbiRef = case eLmdb:dbOpen(EnvRef, "benchmark_db", 16#40000) of
         {ok, DbRef4} -> DbRef4;
         {error, Reason2} ->
             io:format("   数据库创建失败: ~p~n", [Reason2]),
-            eLmdb:env_close(EnvRef),
+            eLmdb:envClose(EnvRef),
             error(Reason2)
     end,
     
@@ -715,7 +716,7 @@ performance_benchmark_test() ->
     end, lists:seq(1, BatchSize)),
     
     BatchStart = erlang:system_time(microsecond),
-    eLmdb:writes(EnvRef, BatchData, 2, 1),
+    eLmdb:writes(EnvRef, BatchData, ?DbTxnSame),
     BatchEnd = erlang:system_time(microsecond),
     
     BatchTime = (BatchEnd - BatchStart) / 1000,
@@ -727,8 +728,9 @@ performance_benchmark_test() ->
     %% 5. 遍历性能测试
     io:format("5. 遍历性能测试...~n"),
     TraversalStart = erlang:system_time(microsecond),
-    case eLmdb:traversal_all(EnvRef, DbiRef) of
-        {ok, AllData} ->
+    %% 使用tvsAsc函数进行遍历测试
+    case eLmdb:tvsAsc(EnvRef, DbiRef, '$TvsBegin', 1000) of
+        {ok, AllData, _NextKey} ->
             TraversalEnd = erlang:system_time(microsecond),
             TraversalTime = (TraversalEnd - TraversalStart) / 1000,
             io:format("   遍历 ~p 条记录用时: ~.2f 毫秒~n", [length(AllData), TraversalTime]);
@@ -741,7 +743,7 @@ performance_benchmark_test() ->
     io:format("   单条写入 vs 批量写入: ~.2f 倍性能提升~n", [WriteOpsPerSec / (NumRecords / BatchSize * BatchOpsPerSec)]),
     io:format("   读取 vs 写入: ~.2f 倍性能差异~n", [ReadOpsPerSec / WriteOpsPerSec]),
     
-    eLmdb:env_close(EnvRef),
+    eLmdb:envClose(EnvRef),
     
     io:format("~n=== 性能基准测试完成 ===~n"),
     ok.
@@ -819,12 +821,6 @@ main() ->
     io:format("8. performance_benchmark_test() - 性能基准测试~n"),
     io:format("9. run_all_functional_tests() - 运行所有功能测试~n"),
     io:format("10. run_all_enhanced_tests() - 运行所有增强测试~n"),
-    io:format("~n"),
-    
-    io:format("使用方法示例:~n"),
-    io:format("   1> eLmdb_tests:environment_management_test().~n"),
-    io:format("   2> eLmdb_tests:run_all_functional_tests().~n"),
-    io:format("   3> eLmdb_tests:run_all_enhanced_tests().~n"),
     io:format("~n"),
     
     io:format("当前状态: 测试模块已编译完成，可以正常运行所有测试~n"),

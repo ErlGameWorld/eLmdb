@@ -15,7 +15,7 @@
 multi_database_example() ->
     io:format("=== eLmdb 多数据库管理示例 ===~n~n"),
     
-    {ok, EnvRef} = eLmdb:env_open(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
+    {ok, EnvRef} = eLmdb:envOpen(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
     
     %% 创建多个数据库
     Databases = [
@@ -28,7 +28,7 @@ multi_database_example() ->
     
     io:format("1. 创建多个数据库...~n"),
     DbiRefs = lists:map(fun({DbName, Description}) ->
-        {ok, DbiRef} = eLmdb:dbi_open(EnvRef, DbName, 262144), %% MDB_CREATE
+        {ok, DbiRef} = eLmdb:dbOpen(EnvRef, DbName, 262144), %% MDB_CREATE
         io:format("   创建数据库: ~s (~ts) -> ~p~n", [DbName, Description, DbiRef]),
         {DbName, DbiRef}
     end, Databases),
@@ -45,7 +45,10 @@ multi_database_example() ->
         {"user:1003", "{\"name\":\"王五\",\"age\":28,\"email\":\"wangwu@example.com\"}"}
     ],
     lists:foreach(fun({Key, Value}) ->
-        ok = eLmdb:put(EnvRef, UsersDbi, Key, Value, 0, 2)
+        ok = eLmdb:put(EnvRef, UsersDbi, Key, Value, 0),
+        ok = eLmdb:putAsync(EnvRef, UsersDbi, Key, Value, 0),
+        ok = eLmdb:putSync(EnvRef, UsersDbi, Key, Value, 0),
+        io:format("   插入: ~s -> ~ts~n", [Key, Value])
     end, UserData),
     io:format("   用户数据库: 插入 ~p 条记录~n", [length(UserData)]),
     
@@ -57,7 +60,7 @@ multi_database_example() ->
         {"product:2003", "{\"name\":\"办公椅\",\"price\":899,\"category\":\"家具\"}"}
     ],
     lists:foreach(fun({Key, Value}) ->
-        ok = eLmdb:put(EnvRef, ProductsDbi, Key, Value, 0, 2)
+        ok = eLmdb:put(EnvRef, ProductsDbi, Key, Value, 0)
     end, ProductData),
     io:format("   产品数据库: 插入 ~p 条记录~n", [length(ProductData)]),
     
@@ -68,14 +71,14 @@ multi_database_example() ->
     UserQuery = [{UsersDbi, "user:1001"}, {UsersDbi, "user:1002"}],
     ProductQuery = [{ProductsDbi, "product:2001"}, {ProductsDbi, "product:2002"}],
     
-    {ok, UserResults} = eLmdb:get_multi(EnvRef, UserQuery),
-    {ok, ProductResults} = eLmdb:get_multi(EnvRef, ProductQuery),
+    {ok, UserResults} = eLmdb:getMulti(EnvRef, UserQuery),
+    {ok, ProductResults} = eLmdb:getMulti(EnvRef, ProductQuery),
     
     io:format("   用户查询结果: ~p~n", [UserResults]),
     io:format("   产品查询结果: ~p~n~n", [ProductResults]),
     
     %% 清理资源
-    ok = eLmdb:env_close(EnvRef),
+    ok = eLmdb:envClose(EnvRef),
     io:format("=== 多数据库管理示例完成 ===~n"),
     ok.
 
@@ -83,8 +86,8 @@ multi_database_example() ->
 transaction_example() ->
     io:format("=== eLmdb 事务处理示例 ===~n~n"),
     
-    {ok, EnvRef} = eLmdb:env_open(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
-    {ok, DbiRef} = eLmdb:dbi_open(EnvRef, "transaction_db", 262144),
+    {ok, EnvRef} = eLmdb:envOpen(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
+    {ok, DbiRef} = eLmdb:dbOpen(EnvRef, "transaction_db", 262144),
     
     %% 事务1: 原子性操作 - 银行转账
     io:format("1. 原子性操作 - 银行转账示例...~n"),
@@ -100,7 +103,7 @@ transaction_example() ->
         {DbiRef, Key, Value}
     end, InitialData),
     
-    ok = eLmdb:writes(EnvRef, Operations, 2, 1),
+    ok = eLmdb:writes(EnvRef, Operations, ?DbTxnSame),
     io:format("   初始化账户余额完成~n"),
     
     %% 模拟转账操作
@@ -121,7 +124,7 @@ transaction_example() ->
         {DbiRef, ToAccount, integer_to_list(list_to_integer(ToBalance) + list_to_integer(TransferAmount))}
     ],
     
-    ok = eLmdb:writes(EnvRef, TransferOperations, 2, 1),
+    ok = eLmdb:writes(EnvRef, TransferOperations, ?DbTxnSame),
     
     %% 验证转账结果
     {ok, NewFromBalance} = eLmdb:get(EnvRef, DbiRef, FromAccount),
@@ -147,15 +150,15 @@ transaction_example() ->
         {DbiRef, Key, Value}
     end, lists:seq(1, 100)),
     
-    ok = eLmdb:writes(EnvRef, BatchData, 2, 1),
-    io:format("   批量导入 ~p 条数据完成~n", [length(BatchData)]),
-    
-    %% 验证批量数据
-    {ok, AllData} = eLmdb:traversal_all(EnvRef, DbiRef),
-    io:format("   数据库中共有 ~p 条记录~n~n", [length(AllData)]),
+    ok = eLmdb:writes(EnvRef, BatchData, ?DbTxnSame),
+	io:format("   批量导入 ~p 条数据完成~n", [length(BatchData)]),
+	
+	%% 验证批量数据
+	{ok, AllData} = eLmdb:tvsFun(EnvRef, DbiRef, ?DbTvsAsc, ?DbTvsKv, fun(One, Acc) -> [One | Acc] end, []),
+	io:format("   数据库中共有 ~p 条记录~n~n", [length(AllData)]),
     
     %% 清理资源
-    ok = eLmdb:env_close(EnvRef),
+    ok = eLmdb:envClose(EnvRef),
     io:format("=== 事务处理示例完成 ===~n"),
     ok.
 
@@ -163,12 +166,12 @@ transaction_example() ->
 error_handling_example() ->
     io:format("=== eLmdb 错误处理和恢复示例 ===~n~n"),
     
-    {ok, EnvRef} = eLmdb:env_open(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
-    {ok, DbiRef} = eLmdb:dbi_open(EnvRef, "error_db", 262144),
+    {ok, EnvRef} = eLmdb:envOpen(?DB_PATH, ?MAP_SIZE, ?MAX_DBS, ?MAX_READERS, 0),
+    {ok, DbiRef} = eLmdb:dbOpen(EnvRef, "error_db", 262144),
     
     %% 1. 正常操作
     io:format("1. 正常数据操作...~n"),
-    ok = eLmdb:put(EnvRef, DbiRef, "normal_key", "normal_value", 0, 2),
+    ok = eLmdb:put(EnvRef, DbiRef, "normal_key", "normal_value", 0),
     {ok, NormalValue} = eLmdb:get(EnvRef, DbiRef, "normal_key"),
     io:format("   正常操作成功: normal_key -> ~s~n~n", [NormalValue]),
     
@@ -186,7 +189,7 @@ error_handling_example() ->
     end,
     
     %% 删除不存在的键
-    case eLmdb:del(EnvRef, DbiRef, "nonexistent_key", 0) of
+    case eLmdb:del(EnvRef, DbiRef, "nonexistent_key") of
         ok ->
             io:format("   意外成功: 删除不存在的键~n");
         {error, Reason2} ->
@@ -196,14 +199,14 @@ error_handling_example() ->
     %% 3. 环境状态检查
     io:format("3. 环境状态检查...~n"),
     
-    case eLmdb:env_info(EnvRef) of
+    case eLmdb:envInfo(EnvRef) of
         {ok, EnvInfo} ->
             io:format("   环境信息正常: ~p~n", [EnvInfo]);
         {error, Reason3} ->
             io:format("   环境信息获取失败: ~p~n", [Reason3])
     end,
     
-    case eLmdb:env_stat(EnvRef) of
+    case eLmdb:envStat(EnvRef) of
         {ok, #envStat{} = EnvStat} ->
             io:format("   环境统计正常: ~p~n", [EnvStat]);
         {error, Reason4} ->
@@ -213,14 +216,14 @@ error_handling_example() ->
     %% 4. 数据库状态检查
     io:format("4. 数据库状态检查...~n"),
     
-    case eLmdb:dbi_stat(EnvRef, DbiRef) of
+    case eLmdb:dbStat(EnvRef, DbiRef) of
         {ok, DbiStat} ->
             io:format("   数据库统计正常: ~p~n", [DbiStat]);
         {error, Reason5} ->
             io:format("   数据库统计获取失败: ~p~n", [Reason5])
     end,
     
-    case eLmdb:dbi_flags(EnvRef, DbiRef) of
+    case eLmdb:dbFlags(EnvRef, DbiRef) of
         {ok, DbiFlags} ->
             io:format("   数据库标志正常: ~p~n", [DbiFlags]);
         {error, Reason6} ->
@@ -231,15 +234,15 @@ error_handling_example() ->
     io:format("5. 数据恢复操作...~n"),
     
     %% 备份数据
-    {ok, BackupData} = eLmdb:traversal_all(EnvRef, DbiRef),
-    io:format("   备份数据: ~p 条记录~n", [length(BackupData)]),
+	{ok, BackupData} = eLmdb:tvsFun(EnvRef, DbiRef, ?DbTvsAsc, ?DbTvsKv, fun(One, Acc) -> [One | Acc] end, []),
+	io:format("   备份数据: ~p 条记录~n", [length(BackupData)]),
     
     %% 模拟数据损坏恢复
     io:format("   模拟数据恢复过程...~n"),
     
     %% 清理所有数据
     lists:foreach(fun({Key, _}) ->
-        eLmdb:del(EnvRef, DbiRef, Key, 0)
+        eLmdb:del(EnvRef, DbiRef, Key)
     end, BackupData),
     
     %% 从备份恢复数据
@@ -247,17 +250,17 @@ error_handling_example() ->
         {DbiRef, Key, Value}
     end, BackupData),
     
-    ok = eLmdb:writes(EnvRef, RecoveryOperations, 2, 1),
-    io:format("   数据恢复完成: ~p 条记录~n", [length(RecoveryOperations)]),
-    
-    %% 验证恢复结果
-    {ok, RestoredData} = eLmdb:traversal_all(EnvRef, DbiRef),
-    io:format("   恢复验证: 原始 ~p 条, 恢复后 ~p 条, 一致=~p~n~n", 
-              [length(BackupData), length(RestoredData), 
-               length(BackupData) =:= length(RestoredData)]),
+    ok = eLmdb:writes(EnvRef, RecoveryOperations, ?DbTxnSame),
+	io:format("   数据恢复完成: ~p 条记录~n", [length(RecoveryOperations)]),
+	
+	%% 验证恢复结果
+	{ok, RestoredData} = eLmdb:tvsFun(EnvRef, DbiRef, ?DbTvsAsc, ?DbTvsKv, fun(One, Acc) -> [One | Acc] end, []),
+	io:format("   恢复验证: 原始 ~p 条, 恢复后 ~p 条, 一致=~p~n~n", 
+			  [length(BackupData), length(RestoredData), 
+			   length(BackupData) =:= length(RestoredData)]),
     
     %% 清理资源
-    ok = eLmdb:env_close(EnvRef),
+    ok = eLmdb:envClose(EnvRef),
     io:format("=== 错误处理和恢复示例完成 ===~n"),
     ok.
 
@@ -280,8 +283,8 @@ performance_optimization_example() ->
         
         %% 创建测试环境
         EnvPath = ?DB_PATH ++ "_" ++ ConfigName,
-        {ok, EnvRef} = eLmdb:env_open(EnvPath, MapSize, MaxDbs, MaxReaders, Flags1),
-        {ok, DbiRef} = eLmdb:dbi_open(EnvRef, "perf_db", 262144),
+        {ok, EnvRef} = eLmdb:envOpen(EnvPath, MapSize, MaxDbs, MaxReaders, Flags1),
+        {ok, DbiRef} = eLmdb:dbOpen(EnvRef, "perf_db", 262144),
         
         %% 写入性能测试
         StartTime = erlang:system_time(microsecond),
@@ -292,7 +295,7 @@ performance_optimization_example() ->
             {DbiRef, Key, Value}
         end, lists:seq(1, TestDataSize)),
         
-        ok = eLmdb:writes(EnvRef, Operations, 2, 1),
+        ok = eLmdb:writes(EnvRef, Operations, ?DbTxnSame),
         
         EndTime = erlang:system_time(microsecond),
         WriteTime = EndTime - StartTime,
@@ -305,7 +308,7 @@ performance_optimization_example() ->
             {DbiRef, Key}
         end, lists:seq(1, TestDataSize)),
         
-        {ok, _} = eLmdb:get_multi(EnvRef, QueryList),
+        {ok, _} = eLmdb:getMulti(EnvRef, QueryList),
         
         EndTime2 = erlang:system_time(microsecond),
         ReadTime = EndTime2 - StartTime2,
@@ -317,8 +320,8 @@ performance_optimization_example() ->
                   [TestDataSize, ReadTime, TestDataSize / (ReadTime / 1000000)]),
         
         %% 环境信息
-        {ok, EnvInfo} = eLmdb:env_info(EnvRef),
-        case eLmdb:env_stat(EnvRef) of
+        {ok, EnvInfo} = eLmdb:envInfo(EnvRef),
+        case eLmdb:envStat(EnvRef) of
             {ok, #envStat{} = EnvStat} ->
                 io:format("   环境信息: ~p~n", [EnvInfo]),
                 io:format("   环境统计: ~p~n", [EnvStat]);
@@ -327,7 +330,7 @@ performance_optimization_example() ->
         end,
         
         %% 清理
-        ok = eLmdb:env_close(EnvRef),
+        ok = eLmdb:envClose(EnvRef),
         io:format("~n")
     end, Configs),
     

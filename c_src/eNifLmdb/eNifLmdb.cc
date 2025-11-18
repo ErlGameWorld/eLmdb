@@ -858,7 +858,6 @@ static ERL_NIF_TERM nif_env_open(ErlNifEnv *env, int argc, const ERL_NIF_TERM ar
     uint64_t maps_size;
     unsigned int max_dbs, max_readers;
     unsigned int flags = 0;
-    mdb_mode_t mode = 0664;
 
     /* Get path string */
     if (!enif_get_string(env, argv[0], path, sizeof(path), ERL_NIF_UTF8)) {
@@ -924,7 +923,17 @@ static ERL_NIF_TERM nif_env_open(ErlNifEnv *env, int argc, const ERL_NIF_TERM ar
         mdb_env_close(mdb_env);
         return make_error(env, "alloc_resource");
     }
-    memset(env_res, 0, sizeof(*env_res));
+
+    // 预初始化资源字段
+    env_res -> mdbEnv = nullptr;
+    env_res ->writeCond = nullptr;
+    env_res ->queueMutex = nullptr;
+    env_res ->msgEnv = nullptr;
+    env_res ->writeQueue = nullptr;
+    env_res -> writeTid = nullptr;
+    env_res->writerStarted.store(false, std::memory_order_relaxed);
+    env_res->isRunning.store(false, std::memory_order_release);
+
     // 初始化环境资源
     env_res->mdbEnv = mdb_env;
 
@@ -2321,22 +2330,25 @@ static ERL_NIF_TERM nif_test1(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ErlNifFunc nifFuncs[] = {
-    {"nif_env_open", 5, nif_env_open},
-    {"nif_env_close", 1, nif_env_close},
-    {"nif_env_set_mapsize", 2, nif_env_set_mapsize},
+    {"nif_env_open", 5, nif_env_open, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_env_close", 1, nif_env_close, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_env_set_mapsize", 2, nif_env_set_mapsize, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"nif_env_info", 1, nif_env_info},
     {"nif_env_stat", 1, nif_env_stat},
-    {"nif_env_sync", 2, nif_env_sync},
-    {"nif_env_copy", 3, nif_env_copy},
-    {"nif_dbi_open", 3, nif_dbi_open},
+    {"nif_env_sync", 2, nif_env_sync, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_env_copy", 3, nif_env_copy, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_dbi_open", 3, nif_dbi_open, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"nif_dbi_stat", 2, nif_dbi_stat},
     {"nif_dbi_flags", 2, nif_dbi_flags},
     {"nif_put", 6, nif_put},
+    {"nif_put_sync", 6, nif_put, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"nif_get", 3, nif_get},
     {"nif_del", 4, nif_del},
-    {"nif_drop", 3, nif_drop},
-    {"nif_get_multi", 2, nif_get_multi},
+    {"nif_del_sync", 4, nif_del, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_drop", 3, nif_drop, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"nif_get_multi", 2, nif_get_multi, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"nif_writes", 4, nif_writes},
+    {"nif_writes_sync", 4, nif_writes, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"nif_traversal", 6, nif_traversal, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"test1", 0, nif_test1},
     {"test", 0, nif_test},

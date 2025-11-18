@@ -23,16 +23,19 @@
 %% 数据操作函数
 -export([
 	nif_put/6,                 %% 存储数据
+	nif_put_sync/6,            %% 存储数据 脏IO函数
 	nif_get/3,                 %% 获取数据
-	nif_del/4,				   %% 删除数据
+	nif_del/4,                 %% 删除数据
+	nif_del_sync/4,            %% 删除数据 脏IO函数
 	nif_drop/3                 %% 清空或删除数据库
 ]).
 
 %% 批量操作函数
 -export([
-    nif_get_multi/2,           %% 批量获取数据
-    nif_writes/4,               %% 批量存储/删除数据
-    nif_traversal/6				   %% 批量遍历数据库
+	nif_get_multi/2,           %% 批量获取数据 脏CPU函数
+	nif_writes/4,               %% 批量存储/删除数据
+	nif_writes_sync/4,          %% 批量存储/删除数据  脏IO函数
+	nif_traversal/6               %% 批量遍历数据库
 ]).
 
 -type env_handle() :: binary().
@@ -110,15 +113,14 @@ nif_env_set_mapsize(_EnvHandle, _Size) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 
-
-%% @doc 获取环境信息 
- %% 获取LMDB环境的详细信息 
- %% @param EnvHandle 环境句柄 
- %% @returns {ok, tuple()} | {error, term()}
- %%          返回格式：{envInfo, MapAddr, MapSize, LastPgno, LastTxnId, MaxReaders, NumReaders, QueueSize}
- -spec nif_env_info(EnvHandle :: env_handle()) -> {ok, tuple()} | {error, term()}. 
- nif_env_info(_EnvHandle) -> 
- 	 erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+%% @doc 获取环境信息
+%% 获取LMDB环境的详细信息
+%% @param EnvHandle 环境句柄
+%% @returns {ok, tuple()} | {error, term()}
+%%          返回格式：{envInfo, MapAddr, MapSize, LastPgno, LastTxnId, MaxReaders, NumReaders, QueueSize}
+-spec nif_env_info(EnvHandle :: env_handle()) -> {ok, tuple()} | {error, term()}.
+nif_env_info(_EnvHandle) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 获取环境统计信息
 %% 获取LMDB环境的统计信息
@@ -127,12 +129,26 @@ nif_env_set_mapsize(_EnvHandle, _Size) ->
 %%          返回格式：{envStat, PSize, Depth, BranchPages, LeafPages, OverflowPages, Entries}
 -spec nif_env_stat(EnvHandle :: env_handle()) -> {ok, tuple()} | {error, term()}.
 nif_env_stat(_EnvHandle) ->
-    erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 同步数据到磁盘
 %% 强制将LMDB环境的数据同步到磁盘
 %% @param EnvHandle 环境句柄
 %% @returns ok | {error, term()}
+
+%% 可传递的值：
+%%
+%% - 0 ：非强制同步
+%% - 1 ：强制同步
+%% ## 具体行为差异：
+%% ### 当 force = 0（非强制同步）：
+%% - 只有在环境没有设置 MDB_NOSYNC 标志时才会执行同步操作
+%% - 如果设置了 MDB_MAPASYNC 标志，会使用 MS_ASYNC 进行异步同步
+%% - 这是性能优化的选项，允许系统在合适的时候进行同步
+%% ### 当 force = 1（强制同步）：
+%% - 无论环境是否设置了 MDB_NOSYNC 标志，都会执行同步操作
+%% - 总是使用 MS_SYNC 进行同步同步
+%% - 确保所有数据都立即写入磁盘，提供最强的数据持久性保证
 -spec nif_env_sync(EnvHandle :: env_handle(), Force :: integer()) -> ok | {error, term()}.
 nif_env_sync(_EnvHandle, _Force) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
@@ -148,8 +164,6 @@ nif_env_sync(_EnvHandle, _Force) ->
 -spec nif_env_copy(EnvHandle :: env_handle(), Path :: string(), Flags :: integer()) -> ok | {error, term()}.
 nif_env_copy(_EnvHandle, _Path, _Flags) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
-
-
 
 %%%==============================环境管理函数 end =====================================
 
@@ -173,14 +187,14 @@ nif_dbi_open(_EnvHandle, _DbName, _Flags) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 获取数据库统计信息 
- %% 获取指定数据库的统计信息 
- %% @param EnvHandle 环境句柄 
- %% @param DbiHandle 数据库句柄 
- %% @returns {ok, tuple()} | {error, term()}
- %%          返回格式：{dbiStat, PSize, Depth, BranchPages, LeafPages, OverflowPages, Entries}
- -spec nif_dbi_stat(EnvHandle :: env_handle(), DbiHandle :: dbi_handle()) -> {ok, tuple()} | {error, term()}. 
- nif_dbi_stat(_EnvHandle, _DbiHandle) -> 
- 	 erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+%% 获取指定数据库的统计信息
+%% @param EnvHandle 环境句柄
+%% @param DbiHandle 数据库句柄
+%% @returns {ok, tuple()} | {error, term()}
+%%          返回格式：{dbiStat, PSize, Depth, BranchPages, LeafPages, OverflowPages, Entries}
+-spec nif_dbi_stat(EnvHandle :: env_handle(), DbiHandle :: dbi_handle()) -> {ok, tuple()} | {error, term()}.
+nif_dbi_stat(_EnvHandle, _DbiHandle) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 获取数据库标志
 %% 获取指定数据库的标志设置
@@ -217,6 +231,8 @@ nif_dbi_flags(_EnvHandle, _DbiHandle) ->
 	Key :: key(), Value :: value(), Flags :: integer(), Mode :: integer()) -> ok | {ok, ok} | {error, term()} | {wait_write, integer()}.
 nif_put(_EnvHandle, _DbiIndex, _Key, _Value, _Flags, _Mode) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+nif_put_sync(_EnvHandle, _DbiIndex, _Key, _Value, _Flags, _Mode) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 获取数据
 %% 从数据库中获取指定键对应的值
@@ -244,6 +260,8 @@ nif_get(_EnvHandle, _DbiIndex, _Key) ->
 -spec nif_del(EnvHandle :: env_handle(), Dbi :: integer(), Key :: key(), Mode :: integer()) -> ok | {ok, ok} | {error, notFound | term()} | {wait_write, integer()} | notFound.
 nif_del(_EnvHandle, _DbiIndex, _Key, _Mode) ->
 	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+nif_del_sync(_EnvHandle, _DbiIndex, _Key, _Mode) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 清空或删除数据库
 %% 清空指定数据库的所有数据或删除数据库
@@ -267,7 +285,7 @@ nif_drop(_EnvHandle, _DbiIndex, _Mode) ->
 %%          其中Reason可能为notFound（当键不存在时）
 -spec nif_get_multi(EnvHandle :: env_handle(), QueryList :: list()) -> {ok, list()} | {error, term()}.
 nif_get_multi(_EnvHandle, _QueryList) ->
-    erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 批量写入操作
 %% @param EnvHandle 环境句柄
@@ -281,9 +299,11 @@ nif_get_multi(_EnvHandle, _QueryList) ->
 %%          - 1: 相同事务 - 所有操作使用同一个事务
 %% @returns ok | {ok, ok} | {error, term()} | {wait_write, integer()}
 -spec nif_writes(EnvHandle :: env_handle(), OperationList :: list(), Mode :: integer(), SameTransaction :: integer()) ->
-    ok | {ok, ok} | {error, term()} | {wait_write, integer()}.
+	ok | {ok, ok} | {error, term()} | {wait_write, integer()}.
 nif_writes(_EnvHandle, _OperationList, _Mode, _SameTransaction) ->
-    erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
+nif_writes_sync(_EnvHandle, _OperationList, _Mode, _SameTransaction) ->
+	erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, ?LINE}]}).
 
 %% @doc 遍历数据库
 %% 遍历指定数据库中的数据，支持正序和反序遍历
